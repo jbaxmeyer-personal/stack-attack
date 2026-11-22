@@ -1,119 +1,107 @@
-// Heuristic AI: greedily picks the best-scoring play until nothing is worth it.
+// Heuristic AI: repeatedly scores every legal action and takes the best one until nothing is worth doing.
 import { CARDS } from './data.js';
-import { playableTargets, costAt, canPlay, canCycle, stacksOf, topCard, hp, atk, kw, other, fwd, ROWS, COLS, MAX_STACK } from './engine.js';
+import {
+  placeTargets, place, canOpen, openSlot, canFill, fill, canSwap, swap, attackTargets, attack,
+  topCard, mods, hp, maxHp, atkCost, atkDmg, other, resonant, MAX_STACK, zoneArr,
+} from './engine.js';
 
-// rows until a stack at row r (owned by o) reaches the enemy base
-const distToBase = (o, r) => (o === 'p' ? r + 1 : ROWS - r);
-
-function stripVal(s, o, strip, r, c) {
-  let v = 0;
-  for (const p of strip) {
-    const n = p.n;
-    switch (p.k) {
-      case 'might': v += n * 1.6; break;
-      case 'ward': v += n * 1.0; break;
-      case 'siege': v += n * (0.6 + 1.2 / distToBase(o, r)); break;
-      case 'charge': v += n * 1.2; break;
-      case 'rally': {
-        let adj = 0;
-        for (const dc of [-1, 1]) { const x = s.board[r]?.[c + dc]; if (x && x.owner === o) adj++; }
-        v += n * (0.5 + adj * 1.2); break;
-      }
-      case 'regrowth': v += n * 1.3; break;
-      case 'thorns': v += n * 1.1; break;
-      case 'spark': v += n * 1.7; break;
-      case 'hex': v += n * 1.3; break;
-      case 'drain': v += n * 0.9; break;
-    }
-  }
-  return v;
+// rough "how good is this stack right now"
+function power(s, st) {
+  const m = mods(s, st), c = topCard(st);
+  const b = atkDmg(s, st, 'basic'), sp = atkDmg(s, st, 'special');
+  const cheap = Math.max(b - atkCost(s, st, 'basic') * 0.8, sp - atkCost(s, st, 'special') * 0.8);
+  return hp(s, st) * 0.45 + Math.max(b, sp * 0.85) * 1.2 + cheap * 0.6
+    + (m.guard ? 1.5 : 0) + (m.ranged ? 1.5 : 0) + m.thorns * 0.8 + m.regen * 1.1 + m.drain * 0.9 + m.burnAdd * 1.4
+    + (c.special.fx.both ? 1 : 0);
 }
 
-const stackValue = st => st.cards.reduce((a, id) => a + CARDS[id].cost * 1.5 + 1, 0);
-
-// first enemy stack in lane c, scanning from (r) forward
-function laneEnemy(s, o, r, c) {
-  for (let rr = r + fwd(o); rr >= 0 && rr < ROWS; rr += fwd(o)) {
-    const x = s.board[rr][c]; if (x && x.owner !== o) return { r: rr, st: x };
-  }
-  return null;
-}
-
-// threat: enemy stacks close to our base in this lane
-function laneThreat(s, o, c) {
+function enemyThreat(s, o) {
   let t = 0;
-  for (let r = 0; r < ROWS; r++) {
-    const x = s.board[r][c];
-    if (x && x.owner !== o) t += (atk(s, r, c) + 1) / distToBase(x.owner, r);
-  }
+  for (const st of s.players[other(o)].active) if (st) t = Math.max(t, atkDmg(s, st, 'special'), atkDmg(s, st, 'basic'));
   return t;
 }
 
-function scorePlay(s, o, id, t) {
-  const card = CARDS[id];
-  if (card.type === 'unit') {
-    let v = 0;
-    if (t.kind === 'deploy') {
-      v = card.atk * 1.2 + card.hp * 0.9 + (card.swift ? 1.5 : 0);
-      const foe = laneEnemy(s, o, t.r, t.c);
-      if (foe) {
-        const fh = hp(foe.st), fa = atk(s, foe.r, t.c);
-        if (card.atk >= fh) v += 2 + stackValue(foe.st) * 0.3;
-        if (fa >= card.hp) v -= 1.5;
-      } else v += 1.5; // open lane → pressure
-      v += laneThreat(s, o, t.c) * 1.5;
-      const front = o === 'e' ? 1 : 3;
-      if (t.r === front) v += 1;
-    } else {
-      const st = s.board[t.r][t.c], old = topCard(st);
-      v = stripVal(s, o, old.strip, t.r, t.c)
-        + card.atk * 1.1 + card.hp * 0.8
-        + st.dmg * 0.8                       // fresh fighter replaces a hurt one
-        - (old.atk + old.hp) * 0.35
-        - st.cards.length * 1.0              // eggs in one basket
-        + (ROWS - distToBase(o, t.r)) * 0.9  // reinforcing up front skips the walk
-        + 1.0                                // discount
-        + (st.buffAtk ? 1 : 0);
-      if (st.cards.length === MAX_STACK - 1) v -= 0.5;
-    }
-    if (card.onPlay === 'draw1') v += 1.5;
-    return v;
+function scorePlace(s, o, id, t) {
+  const c = CARDS[id], P = s.players[o];
+  const arr = zoneArr(s, o, t.zone);
+  if (t.kind === 'new') {
+    const base = c.hp * 0.35 + Math.max(c.basic.dmg, c.special.dmg) * 0.9;
+    if (t.zone === 'a') return 4 + base;           // filling an empty active is big
+    const benchCount = P.bench.filter(Boolean).length;
+    return 1.2 + base * 0.5 - benchCount * 0.6;      // build a bench, but don't overfill
   }
-  // spells
-  if (card.effect === 'smite' || card.effect === 'moonbolt') {
-    const n = card.effect === 'smite' ? 4 : 3, st = s.board[t.r][t.c];
-    if (hp(st) <= n) return 3 + stackValue(st) * 1.1 + (card.effect === 'moonbolt' ? 1.5 : 0);
-    return n * 0.4 - 1;
-  }
-  if (card.effect === 'eclipse') {
-    let v = -2;
-    for (const x of stacksOf(s, other(o))) v += hp(x.st) <= 2 ? 2 + stackValue(x.st) : 0.8;
-    return v;
-  }
-  if (card.effect === 'blessing') {
-    const st = s.board[t.r][t.c];
-    return st.dmg * 0.9 + 2.5 + st.cards.length * 0.8 - 2;
-  }
-  return 0;
+  const st = arr[t.i];
+  const before = power(s, st);
+  st.cards.push(id); const after = power(s, st); const reso = resonant(st); st.cards.pop();
+  let v = (after - before) * 1.1 + (reso ? 3 : 0);
+  // tall stacks are shard liabilities; more so if they're hurt and up front
+  const hurt = st.dmg / Math.max(1, maxHp(s, st));
+  v -= st.cards.length * 0.9 + (t.zone === 'a' ? hurt * 3 : 0);
+  if (t.zone === 'a') v += 0.8;                     // immediate impact
+  return v;
 }
 
-export function bestPlay(s, o) {
-  const P = s.players[o]; let best = null;
-  for (const id of P.hand) {
-    if (!canPlay(s, o, id)) continue;
-    for (const t of playableTargets(s, o, id)) {
-      const score = scorePlay(s, o, id, t) + costAt(s, o, id, t) * 0.4; // slight preference for spending mana
-      if (!best || score > best.score) best = { id, t, score };
-    }
+function scoreAttack(s, o, ai, which, t) {
+  const st = s.players[o].active[ai], a = topCard(st)[which];
+  const cost = atkCost(s, st, which);
+  const E = s.players[other(o)];
+  let v = -cost * 0.35;
+  if (t.self) {
+    v += (a.fx.heal ? Math.min(a.fx.heal, st.dmg) * 0.8 : 0) + (a.fx.shield ? Math.min(a.fx.shield, enemyThreat(s, o)) * 0.7 : 0)
+      + (a.fx.draw ? a.fx.draw * 1.3 : 0);
+    return v;
   }
-  return best && best.score > 0.5 ? best : null;
+  const dmg = atkDmg(s, st, which), m = mods(s, st);
+  const tgts = t.both ? E.active.filter(Boolean) : [E.active[t.i]];
+  for (const tg of tgts) {
+    const eff = Math.max(0, dmg - tg.shield), h = hp(s, tg);
+    v += Math.min(eff, h) * 1.0;
+    if (eff >= h) v += 4 + tg.cards.length * 4;
+    const burn = (a.fx.burn || 0) + (dmg > 0 ? m.burnAdd : 0);
+    if (burn && eff < h) v += burn * 0.8;
+    const th = mods(s, tg).thorns; if (th && eff > 0) v -= th * 0.7;
+  }
+  if (a.fx.splash) for (const x of E.active) if (x && !tgts.includes(x)) { const h = hp(s, x); v += Math.min(a.fx.splash, h) + (a.fx.splash >= h ? 4 + x.cards.length * 4 : 0); }
+  if (a.fx.heal) v += Math.min(a.fx.heal, st.dmg) * 0.5;
+  return v;
 }
 
-// cycle a card that is far too expensive for now, once per turn
-export function cyclePick(s, o) {
-  const P = s.players[o];
-  const bad = P.hand.filter(id => CARDS[id].cost > P.maxMana + 2 && canCycle(s, o, id));
-  if (!bad.length) return null;
-  bad.sort((a, b) => CARDS[b].cost - CARDS[a].cost);
-  return bad[0];
+export function candidates(s, o) {
+  const P = s.players[o], out = [];
+  for (const id of new Set(P.hand)) for (const t of placeTargets(s, o, id)) out.push({ type: 'place', id, t, score: scorePlace(s, o, id, t) });
+  if (canOpen(s, o)) {
+    const ready = P.bench.some(Boolean) || P.hand.some(id => CARDS[id].cost <= P.mana - 2);
+    out.push({ type: 'open', score: ready && P.turns >= 2 ? 3.5 : -1 });
+  }
+  for (let bi = 0; bi < 3; bi++) for (let ai = 0; ai < 2; ai++) if (canFill(s, o, bi, ai)) out.push({ type: 'fill', bi, ai, score: 6 + power(s, P.bench[bi]) * 0.3 });
+  for (let ai = 0; ai < 2; ai++) {
+    const st = P.active[ai]; if (!st) continue;
+    for (const which of ['basic', 'special']) for (const t of attackTargets(s, o, ai, which)) out.push({ type: 'attack', ai, which, t, score: scoreAttack(s, o, ai, which, t) });
+    // retreat a nearly-dead tall stack to protect shards
+    const h = hp(s, st);
+    if (h <= enemyThreat(s, o) && st.cards.length >= 2) {
+      for (let bi = 0; bi < 3; bi++) if (canSwap(s, o, ai, bi)) {
+        const inc = P.bench[bi];
+        if (!inc || hp(s, inc) > h) out.push({ type: 'swap', ai, bi, score: st.cards.length * 2 + (inc ? 1 : -1) });
+      }
+    }
+  }
+  return out;
+}
+
+export function bestAction(s, o) {
+  let best = null;
+  for (const c of candidates(s, o)) if (!best || c.score > best.score) best = c;
+  return best && best.score > 0.3 ? best : null;
+}
+
+export function doAction(s, o, a) {
+  switch (a.type) {
+    case 'place': return place(s, o, a.id, a.t);
+    case 'open': return openSlot(s, o);
+    case 'fill': return fill(s, o, a.bi, a.ai);
+    case 'swap': return swap(s, o, a.ai, a.bi);
+    case 'attack': return attack(s, o, a.ai, a.which, a.t);
+  }
+  return false;
 }

@@ -1,7 +1,9 @@
 // Procedural card art: faction gradient + sigil + bold silhouette. viewBox 0 0 100 100.
 const PAL = {
-  sun:  { a: '#ffe7a0', b: '#e0782a', c: '#5a1d07', s: '#2a1005', h: '#fff4cf' },
-  moon: { a: '#d6c9ff', b: '#4a3592', c: '#110a2c', s: '#0a0517', h: '#efe9ff' },
+  wild:   { a: '#d9f5a0', b: '#3f9a4a', c: '#0d2b16', s: '#06170b', h: '#efffd8' },
+  stone:  { a: '#f3dcb0', b: '#9a7a52', c: '#2b2116', s: '#17110a', h: '#fff1d6' },
+  arcane: { a: '#c4ecff', b: '#2f78c9', c: '#0a1a3a', s: '#050d20', h: '#e6f7ff' },
+  shadow: { a: '#d6c9ff', b: '#4a3592', c: '#110a2c', s: '#0a0517', h: '#efe9ff' },
 };
 let UID = 0;
 
@@ -27,7 +29,7 @@ function sigil(card, p) {
     const a = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(card.cost, 1);
     ticks.push(`<circle cx="${(50 + Math.cos(a) * 40).toFixed(1)}" cy="${(46 + Math.sin(a) * 40).toFixed(1)}" r="1.6"/>`);
   }
-  if (card.faction === 'sun') {
+  if (card.tag === 'wild' || card.tag === 'stone') {
     const rays = [];
     for (let i = 0; i < 16; i++) {
       const a = (i * Math.PI) / 8;
@@ -116,8 +118,38 @@ const SIL = {
     ${hl(p, 'M50 50 m-27 0 a27 27 0 1 0 54 0', 1.5, 0.7)}`,
 };
 
+Object.assign(SIL, {
+  fox: p => `<path d="M22 92 Q20 66 34 56 L30 30 L44 46 L56 46 L70 30 L66 56 Q80 66 78 92 Z"/>
+    <path d="M78 86 Q96 80 94 58 Q90 74 76 74 Z"/>${glow(p, 43, 62, 2)}${glow(p, 57, 62, 2)}${hl(p, 'M46 72 L50 76 L54 72', 1.5, 0.5)}`,
+  boar: p => `${shadow}<path d="M12 70 Q14 44 40 40 Q62 34 78 46 L92 56 L88 66 L80 66 Q76 80 64 82 L62 94 L54 94 L52 84 L34 84 L32 94 L24 94 L22 82 Q12 80 12 70 Z"/>
+    <path d="M84 62 Q92 54 90 46 L86 54 Z" fill="${p.h}" opacity=".8"/>${hl(p, 'M30 42 L34 34 L38 42 L42 32 L46 40 L50 30 L54 40', 2, 0.55)}${glow(p, 76, 52, 1.8)}`,
+  archer: p => `${shadow}<circle cx="44" cy="26" r="8"/><path d="M38 20 L28 14 L40 18 Z"/><path d="M30 94 L34 46 Q44 38 54 46 L58 94 Z"/>
+    <path d="M72 10 Q90 50 72 90" fill="none" stroke="${p.s}" stroke-width="4"/>${hl(p, 'M72 10 L72 90', 1, 0.6)}
+    <path d="M48 50 L82 50 L82 53 L48 53 Z"/><path d="M84 51.5 L76 46 L76 57 Z"/>${glow(p, 46, 26, 1.4)}`,
+  golem: p => `${shadow}<path d="M36 36 L64 36 L68 60 L32 60 Z"/><rect x="40" y="16" width="20" height="18" rx="3"/>
+    <path d="M28 40 L18 68 L26 70 L34 46 Z"/>${mirror('<path d="M28 40 L18 68 L26 70 L34 46 Z"/>')}<path d="M36 62 L34 92 L46 92 L48 62 Z M52 62 L54 92 L66 92 L64 62 Z"/>
+    ${glow(p, 46, 25, 2)}${glow(p, 54, 25, 2)}${hl(p, 'M40 44 L48 50 L44 56 M60 42 L54 52', 1.5, 0.45)}`,
+  troll: p => `${shadow}<circle cx="50" cy="26" r="11"/><path d="M40 22 L32 18 L40 28 Z M60 22 L68 18 L60 28 Z"/>
+    <path d="M22 94 Q16 56 30 42 Q50 32 70 42 Q84 56 78 94 Z"/><path d="M76 50 L92 82 Q94 90 86 92 L72 60 Z"/>
+    ${glow(p, 45, 24, 1.6)}${glow(p, 55, 24, 1.6)}${hl(p, 'M44 32 L47 29 M56 32 L53 29', 2, 0.8)}`,
+  chief: p => `${SIL.troll(p)}<path d="M38 14 L41 4 L45 11 L50 2 L55 11 L59 4 L62 14 Z" fill="${p.h}" opacity=".85"/>`,
+  shield: p => SIL.shieldbearer(p),
+  sentinel: p => `${shadow}<path d="M30 94 L32 34 L50 14 L68 34 L70 94 Z"/><path d="M22 44 L30 40 L30 70 L22 66 Z"/>${mirror('<path d="M22 44 L30 40 L30 70 L22 66 Z"/>')}
+    ${glow(p, 50, 38, 4)}${hl(p, 'M50 48 V86 M40 60 H60 M38 74 H62', 2, 0.35)}`,
+  lion: p => SIL.sunlion(p),
+  apprentice: p => SIL.witch(p),
+  battlemage: p => SIL.paladin(p),
+  stormwitch: p => `${shadow}<path d="M34 94 L40 46 Q50 38 60 46 L66 94 Z"/><circle cx="50" cy="32" r="9"/>
+    <path d="M40 26 Q30 40 26 60 Q36 46 42 34 Z M60 26 Q70 40 74 60 Q64 46 58 34 Z"/>
+    <path d="M72 4 L62 24 L70 24 L60 44 L80 18 L72 18 L80 4 Z" fill="${p.h}" opacity=".9"/>${glow(p, 46, 32, 1.4)}${glow(p, 54, 32, 1.4)}`,
+  archmage: p => `${shadow}<path d="M50 6 L62 30 L38 30 Z"/><circle cx="50" cy="36" r="8"/><path d="M24 96 L34 46 Q50 38 66 46 L76 96 Z"/>
+    <path d="M20 22 L23 22 L26 94 L23 94 Z"/>${star(21, 16, 9, 3.5, 4)}${glow(p, 21, 16, 3)}${hl(p, 'M50 50 V90 M40 64 Q50 70 60 64', 1.5, 0.4)}`,
+  lich: p => `${SIL.eclipse(p)}<circle cx="50" cy="44" r="12" fill="${p.s}"/><circle cx="45" cy="43" r="3" fill="${p.a}"/><circle cx="55" cy="43" r="3" fill="${p.a}"/>
+    <path d="M30 98 L38 58 Q50 52 62 58 L70 98 Z"/>`,
+});
+
 export function artSVG(card) {
-  const p = PAL[card.faction], g = `g${++UID}`;
+  const p = PAL[card.tag], g = `g${++UID}`;
   return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">` +
     `<defs><radialGradient id="${g}" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="${p.a}"/><stop offset=".5" stop-color="${p.b}"/><stop offset="1" stop-color="${p.c}"/></radialGradient></defs>` +
     `<rect width="100" height="100" fill="url(#${g})"/>${sigil(card, p)}<g fill="${p.s}">${(SIL[card.art] || (() => ''))(p)}</g></svg>`;
