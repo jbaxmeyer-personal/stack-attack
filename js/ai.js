@@ -56,19 +56,50 @@ function scoreAttack(s, o, ai, which, t) {
   for (const tg of tgts) {
     const eff = Math.max(0, dmg - tg.shield), h = hp(s, tg);
     v += Math.min(eff, h) * 1.0;
+    v += Math.min(dmg, tg.shield) * 0.8;   // stripping a shield is real progress (it never expires)
     if (eff >= h) v += 4 + tg.cards.length * 4;
     const burn = (a.fx.burn || 0) + (dmg > 0 ? m.burnAdd : 0);
     if (burn && eff < h) v += burn * 0.8;
     const th = mods(s, tg).thorns; if (th && eff > 0) v -= th * 0.7;
   }
-  if (a.fx.splash) for (const x of E.active) if (x && !tgts.includes(x)) { const h = hp(s, x); v += Math.min(a.fx.splash, h) + (a.fx.splash >= h ? 4 + x.cards.length * 4 : 0); }
+  if (a.fx.splash) for (const x of E.active) if (x && !tgts.includes(x)) {
+    const h = hp(s, x), eff = Math.max(0, a.fx.splash - x.shield);
+    v += Math.min(eff, h) + Math.min(a.fx.splash, x.shield) * 0.8 + (eff >= h ? 4 + x.cards.length * 4 : 0);
+  }
   if (a.fx.heal) v += Math.min(a.fx.heal, st.dmg) * 0.5;
   return v;
 }
 
+// cheapest attack the active in slot ai could make after a placement (null = none possible)
+function cheapestAttack(s, o, ai, newTopId) {
+  const st = s.players[o].active[ai]; if (!st) return null;
+  if (newTopId) st.cards.push(newTopId);
+  const c = Math.min(atkCost(s, st, 'basic'), atkCost(s, st, 'special'));
+  if (newTopId) st.cards.pop();
+  return c;
+}
+
 export function candidates(s, o) {
   const P = s.players[o], out = [];
-  for (const id of new Set(P.hand)) for (const t of placeTargets(s, o, id)) out.push({ type: 'place', id, t, score: scorePlace(s, o, id, t) });
+  // best attack available right now, so placements that eat the attack mana pay for it
+  let bestAtk = 0;
+  for (let ai = 0; ai < 2; ai++) for (const which of ['basic', 'special']) for (const t of attackTargets(s, o, ai, which))
+    bestAtk = Math.max(bestAtk, scoreAttack(s, o, ai, which, t));
+  for (const id of new Set(P.hand)) for (const t of placeTargets(s, o, id)) {
+    let score = scorePlace(s, o, id, t);
+    if (bestAtk > 0) {
+      const left = P.mana - CARDS[id].cost;
+      let canStill = false;
+      for (let ai = 0; ai < 2; ai++) {
+        const st = P.active[ai];
+        if (!st || st.attacked || st.fresh) continue;
+        const c = cheapestAttack(s, o, ai, t.zone === 'a' && t.i === ai && t.kind === 'stack' ? id : null);
+        if (c !== null && c <= left) canStill = true;
+      }
+      if (!canStill) score -= bestAtk * 0.8;
+    }
+    out.push({ type: 'place', id, t, score });
+  }
   if (canOpen(s, o)) {
     const ready = P.bench.some(Boolean) || P.hand.some(id => CARDS[id].cost <= P.mana - 2);
     out.push({ type: 'open', score: ready && P.turns >= 2 ? 3.5 : -1 });
