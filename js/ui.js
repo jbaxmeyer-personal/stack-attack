@@ -222,6 +222,11 @@ function hlFor(o, zone, i) {
     if (o === 'e' && zone === 'a') return attackTargets(G, 'p', sel.ai, sel.which).some(t => t.i === i || t.both) ? 'hl target' : '';
     if (o === 'p' && zone === 'a' && sel.ai === i) return 'selected';
   }
+  if (sel.kind === 'move' && o === 'p') {
+    if (zone === sel.from.zone && i === sel.from.i) return 'selected';
+    const k = moveKind(sel.from, zone, i);
+    return k === 'fill' ? 'hl' : k === 'swap' ? 'hl stackable swap' : '';
+  }
   if (sel.kind === 'retreat') {
     if (o === 'p' && zone === 'b') return canSwap(G, 'p', sel.ai, i) ? 'hl' : '';
     if (o === 'p' && zone === 'a' && sel.ai === i) return 'selected';
@@ -261,6 +266,7 @@ function promptHTML() {
     let t = '';
     if (sel.kind === 'attack') t = `Choose a target for <b>${esc(topCard(G.players.p.active[sel.ai])[sel.which].name)}</b>`;
     else if (sel.kind === 'retreat') t = `Choose a bench slot to swap into (${RETREAT_COST}◆)`;
+    else if (sel.kind === 'move') t = sel.from.zone === 'b' ? `Drop on an active slot — empty is free, occupied swaps for ${RETREAT_COST}◆` : `Drop on a bench slot to retreat (${RETREAT_COST}◆)`;
     else if (sel.kind === 'hand') t = `${drag ? 'Drop' : 'Tap a highlighted slot'} for <b>${esc(CARDS[sel.id].name)}</b>${G.players.p.active.some(Boolean) ? '' : ' — it goes to your active'}`;
     return `<div class="prompt">${t}<button class="btn" data-act="cancel">Cancel</button></div>`;
   }
@@ -311,20 +317,40 @@ function banner(text, color) {
   document.body.appendChild(b); setTimeout(() => b.remove(), 1000);
 }
 
-// ---------- drag from hand ----------
+// ---------- drag: hand cards onto slots, and your stacks between bench <-> active ----------
 let drag = null, suppressClick = false;
+
+// what dropping your stack from `from` onto (zone,i) would do: 'fill' (free), 'swap' (retreat cost), or null
+function moveKind(from, zone, i) {
+  const P = G.players.p;
+  if (from.zone === 'b' && zone === 'a') {
+    if (!P.active[i]) return canFill(G, 'p', from.i, i) ? 'fill' : null;
+    return canSwap(G, 'p', i, from.i) ? 'swap' : null;
+  }
+  if (from.zone === 'a' && zone === 'b') return canSwap(G, 'p', from.i, i) ? 'swap' : null;
+  return null;
+}
+
 app.addEventListener('pointerdown', e => {
+  if (!G || busy || G.active !== 'p' || G.winner) return;
   const h = e.target.closest('[data-hand]');
-  if (!h || !G || busy || G.active !== 'p' || G.winner) return;
-  drag = { id: h.dataset.hand, k: +h.dataset.k, x0: e.clientX, y0: e.clientY, started: false, html: h.outerHTML, w: h.offsetWidth, hh: h.offsetHeight };
+  if (h) {
+    drag = { kind: 'hand', id: h.dataset.hand, k: +h.dataset.k, x0: e.clientX, y0: e.clientY, started: false, html: h.outerHTML, w: h.offsetWidth, hh: h.offsetHeight };
+    return;
+  }
+  const sl = e.target.closest('.slot[data-o="p"]');
+  if (sl && !sl.classList.contains('locked') && getSt('p', sl.dataset.z, +sl.dataset.i) && !sel) {
+    const from = { zone: sl.dataset.z, i: +sl.dataset.i }, top = topCard(getSt('p', from.zone, from.i));
+    drag = { kind: 'move', from, x0: e.clientX, y0: e.clientY, started: false, html: cardHTML(top), w: 78, hh: 108 };
+  }
 });
 document.addEventListener('pointermove', e => {
   if (!drag) return;
   if (!drag.started) {
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
     drag.started = true;
-    sel = { kind: 'hand', id: drag.id, k: drag.k };
-    render();
+    sel = drag.kind === 'hand' ? { kind: 'hand', id: drag.id, k: drag.k } : { kind: 'move', from: drag.from };
+    closePop(); render();
     const g = document.createElement('div');
     g.className = 'ghost'; g.innerHTML = drag.html;
     g.style.width = `${drag.w}px`; g.style.height = `${drag.hh}px`;
@@ -342,7 +368,18 @@ function endDrag(e) {
   suppressClick = true; setTimeout(() => { suppressClick = false; }, 50);
   d.ghost?.remove();
   const sl = document.elementFromPoint(e.clientX, e.clientY)?.closest('.slot');
-  if (sl && sl.dataset.o === 'p' && place(G, 'p', d.id, { zone: sl.dataset.z, i: +sl.dataset.i })) return after();
+  if (sl && sl.dataset.o === 'p') {
+    const zone = sl.dataset.z, i = +sl.dataset.i;
+    if (d.kind === 'hand' && place(G, 'p', d.id, { zone, i })) return after();
+    if (d.kind === 'move') {
+      const k = moveKind(d.from, zone, i);
+      if (k === 'fill' && fill(G, 'p', d.from.i, i)) return after();
+      if (k === 'swap') {
+        const ok = d.from.zone === 'b' ? swap(G, 'p', i, d.from.i) : swap(G, 'p', d.from.i, i);
+        if (ok) return after();
+      }
+    }
+  }
   sel = null; render();
 }
 document.addEventListener('pointerup', endDrag);
@@ -412,3 +449,4 @@ function showEnd() {
 }
 
 menu();
+window.__sa = { get G() { return G; }, render: () => render() }; // debug hook for tests

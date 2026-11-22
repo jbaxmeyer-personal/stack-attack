@@ -220,3 +220,6 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .bur.stone { background: linear-gradient(#4a3a22, #2b2114); color: #f6dfb8; border-color: var(--stone); }
 .bur.arcane { background: linear-gradient(#1c3a62, #0f2140); color: #cfe9ff; border-color: var(--arcane); }
 .bur.shadow { background: linear-gradient(#352659, #1f1638); color: #e5dbff; border-color: var(--shadow); }
+.slot[data-o="p"] { touch-action: none; }
+.slot.hl.swap::after { content: "SWAP 1◆"; position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 30;
+  font-size: 9px; font-weight: 900; background: var(--gold); color: #2a1206; padding: 1px 5px; border-radius: 5px; }
