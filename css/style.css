@@ -148,3 +148,75 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .float.dmg { color: #ff5a4a; } .float.heal { color: #7dffb0; } .float.shield { color: #8ecbff; } .float.burn { color: #ff9a3c; }
 .float.ko { color: var(--gold); font-size: 22px; }
 @keyframes up { from { opacity: 1; margin-top: 0; } to { opacity: 0; margin-top: -34px; } }
+
+/* ---------- prompt line ---------- */
+.prompt { min-height: 34px; padding: 3px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #d8cfe4; }
+.prompt b { color: #fff; } .prompt .btn { margin-left: auto; padding: 5px 10px; font-size: 12px; }
+.ready { font-size: 8.5px; white-space: nowrap; }
+
+/* ---------- drag ---------- */
+.hand, .hand .card { touch-action: none; }
+.ghost { position: fixed; z-index: 70; pointer-events: none; transform: translate(-50%, -70%) scale(1.08) rotate(-3deg); opacity: .92;
+  filter: drop-shadow(0 10px 18px #000c); }
+.ghost .card { width: 100%; height: 100%; }
+.slot.drop { box-shadow: inset 0 0 0 3px #fff, 0 0 20px #fff8 !important; }
+
+/* ---------- popup + big card ---------- */
+.pop { position: fixed; inset: 0; z-index: 55; background: #000c; display: flex; align-items: center; justify-content: center;
+  padding: 12px; animation: popin .15s ease-out; }
+@keyframes popin { from { opacity: 0; } to { opacity: 1; } }
+.pbox { width: min(340px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; animation: zoom .18s ease-out; }
+@keyframes zoom { from { transform: scale(.85); } to { transform: none; } }
+.phead { font-size: 10.5px; font-weight: 900; letter-spacing: .8px; color: #a99dbb; text-align: center; }
+.pwhy { font-size: 12px; color: #ff9c6b; text-align: center; }
+.pkw { font-size: 11px; line-height: 1.45; color: #a99dbb; background: #17131e; border-radius: 10px; padding: 8px 10px; }
+.pkw b { color: #e8def5; }
+.pact { display: flex; gap: 8px; } .pact .btn { flex: 1; padding: 11px; font-size: 14px; }
+
+.big { border-radius: 16px; overflow: hidden; border: 3px solid; background: #120f18; flex: none; }
+.big.wild { border-color: var(--wild); } .big.stone { border-color: var(--stone); } .big.arcane { border-color: var(--arcane); } .big.shadow { border-color: var(--shadow); }
+.bhead { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: linear-gradient(#2a2236, #1a1522); }
+.bcost { width: 34px; height: 34px; flex: none; border-radius: 50%; background: radial-gradient(#5aa8ff, #1c4fae); font-weight: 900; font-size: 18px;
+  line-height: 34px; text-align: center; box-shadow: 0 1px 4px #000; }
+.btitle b { display: block; font-size: 18px; line-height: 1.1; }
+.btitle span { font-size: 11.5px; color: #b5aac6; display: flex; align-items: center; gap: 5px; }
+.btitle i { width: 8px; height: 8px; transform: rotate(45deg); display: inline-block; }
+.btitle em { font-style: normal; font-weight: 800; }
+.bart { position: relative; height: 190px; }
+.bart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bchips { position: absolute; left: 8px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px; max-width: 65%; }
+.bchips .chip { font-size: 11px; line-height: 18px; padding: 0 6px; }
+.bhp { position: absolute; right: 8px; bottom: 8px; background: #2c9a5a; border-radius: 14px; padding: 2px 10px; font-weight: 900; font-size: 22px;
+  box-shadow: 0 2px 6px #000a; }
+.bhp.hurt { background: #d9821c; } .bhp small { font-size: 12px; font-weight: 800; opacity: .9; }
+.brows { display: flex; flex-direction: column; }
+.brow { display: grid; grid-template-columns: 1fr auto auto; grid-template-areas: "rk dmg cost" "rname dmg cost" "rfx dmg cost";
+  align-items: center; column-gap: 10px; padding: 8px 12px; text-align: left; border-top: 1px solid #2a2236; background: #17131e; width: 100%; }
+.brow.special { background: #1d1629; }
+.brow.live { cursor: pointer; } .brow.live:not(:disabled) { box-shadow: inset 3px 0 0 var(--p); }
+.brow.live:not(:disabled):active { background: #2b2440; }
+.brow:disabled { opacity: .45; }
+.brow .rk { grid-area: rk; font-size: 9px; font-weight: 900; letter-spacing: .8px; color: #8a7f99; }
+.brow.special .rk { color: #b08cff; }
+.brow .rname { grid-area: rname; font-size: 15px; font-weight: 800; }
+.brow .rfx { grid-area: rfx; font-size: 11.5px; color: #b5aac6; }
+.brow .rfx:empty { display: none; }
+.brow .dmg { grid-area: dmg; font-size: 22px; font-weight: 900; color: #ff7a6b; min-width: 28px; text-align: center; }
+.brow .dmg.up { color: var(--gold); } .brow .dmg.zero { color: #5a5068; }
+.brow .rcost { grid-area: cost; font-weight: 900; font-size: 15px; color: #9fd0ff; min-width: 34px; text-align: right; }
+.brow .rcost s { opacity: .5; font-size: 12px; }
+.bstrip { padding: 8px 12px 10px; font-size: 13.5px; font-weight: 800; border-top: 2px solid; }
+.bstrip span { display: block; font-size: 9px; letter-spacing: .8px; opacity: .7; margin-bottom: 2px; }
+.big.wild .bstrip { background: linear-gradient(#1f4426, #12291a); color: #c9f5cc; border-color: var(--wild); }
+.big.stone .bstrip { background: linear-gradient(#4a3a22, #2b2114); color: #f6dfb8; border-color: var(--stone); }
+.big.arcane .bstrip { background: linear-gradient(#1c3a62, #0f2140); color: #cfe9ff; border-color: var(--arcane); }
+.big.shadow .bstrip { background: linear-gradient(#352659, #1f1638); color: #e5dbff; border-color: var(--shadow); }
+.burs { display: flex; flex-direction: column; gap: 4px; margin-top: -4px; }
+.bur { text-align: left; padding: 6px 12px; border-radius: 0 0 12px 12px; border: 2px solid; border-top: 0; font-size: 13px; font-weight: 800; }
+.bur .bt { display: flex; justify-content: space-between; font-size: 10px; letter-spacing: .5px; opacity: .8; margin-bottom: 1px; }
+.bur .bt em { font-style: normal; font-weight: 900; }
+.bur.on .bt em { color: #7dffb0; } .bur.off { opacity: .5; } .bur.off .bt em { color: #ff9c6b; }
+.bur.wild { background: linear-gradient(#1f4426, #12291a); color: #c9f5cc; border-color: var(--wild); }
+.bur.stone { background: linear-gradient(#4a3a22, #2b2114); color: #f6dfb8; border-color: var(--stone); }
+.bur.arcane { background: linear-gradient(#1c3a62, #0f2140); color: #cfe9ff; border-color: var(--arcane); }
+.bur.shadow { background: linear-gradient(#352659, #1f1638); color: #e5dbff; border-color: var(--shadow); }

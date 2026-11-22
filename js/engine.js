@@ -146,9 +146,11 @@ export function placeTargets(s, o, id) {
 }
 
 export function place(s, o, id, t) {
-  const legal = placeTargets(s, o, id).find(x => x.zone === t.zone && x.i === t.i);
+  let legal = placeTargets(s, o, id).find(x => x.zone === t.zone && x.i === t.i);
   if (!legal) return false;
   const P = s.players[o], c = CARDS[id];
+  // no active fighter? a newly summoned card always goes straight to the active slot
+  if (legal.kind === 'new' && !P.active.some(Boolean)) { t = { zone: 'a', i: 0 }; legal = { ...t, kind: 'new' }; }
   P.mana -= c.cost;
   P.hand.splice(P.hand.indexOf(id), 1);
   const arr = zoneArr(s, o, t.zone);
