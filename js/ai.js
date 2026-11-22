@@ -1,9 +1,9 @@
 // Heuristic AI: repeatedly scores every legal action and takes the best one until nothing is worth doing.
-import { CARDS } from './data.js';
+import { CARDS } from './data.js?v=8';
 import {
   placeTargets, place, canOpen, openSlot, canFill, fill, canSwap, swap, attackTargets, attack,
   topCard, mods, hp, maxHp, atkCost, atkDmg, other, resonant, MAX_STACK, zoneArr,
-} from './engine.js';
+} from './engine.js?v=8';
 
 // rough "how good is this stack right now"
 function power(s, st) {

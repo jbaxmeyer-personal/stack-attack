@@ -1,6 +1,6 @@
-import { STARTERS, CARDS } from '../js/data.js';
-import { newGame, endTurn, stacks } from '../js/engine.js';
-import { bestAction, doAction } from '../js/ai.js';
+import { STARTERS, CARDS } from '../js/data.js?v=8';
+import { newGame, endTurn, stacks } from '../js/engine.js?v=8';
+import { bestAction, doAction } from '../js/ai.js?v=8';
 const N = +process.argv[2] || 300;
 const decks = Object.entries(STARTERS);
 function playGame(pd, ed){

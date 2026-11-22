@@ -2,7 +2,7 @@
 // Each side: 2 active slots (2nd must be opened), 3 bench slots. Stacks up to 3 cards.
 // Top card = fighter (its attacks + HP). Buried cards = strips (passives) if their condition holds.
 // KO a stack → you gain shards equal to its height. First to WIN_SHARDS wins.
-import { CARDS, RESONANCE } from './data.js';
+import { CARDS, RESONANCE } from './data.js?v=8';
 
 export const WIN_SHARDS = 5, MAX_STACK = 3, HAND_SIZE = 4, HAND_MAX = 6, START_HAND = 5;
 export const MAX_MANA = 8, OPEN_COST = 2, RETREAT_COST = 1;

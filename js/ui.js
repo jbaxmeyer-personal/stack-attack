@@ -1,17 +1,18 @@
-import { CARDS, TAGS, RARITY, STARTERS, KW_HELP, stripText, fxText } from './data.js';
+import { CARDS, TAGS, RARITY, STARTERS, KW_HELP, stripText, fxText } from './data.js?v=8';
 import {
   WIN_SHARDS, MAX_STACK, OPEN_COST, RETREAT_COST, newGame, endTurn, topCard, buried, mods, hp, maxHp,
   atkCost, atkDmg, condMet, resonant, placeTargets, place, canOpen, openSlot, canFill, fill, canSwap, swap,
   canAttackerAct, attackTargets, attack,
-} from './engine.js';
-import { bestAction, doAction } from './ai.js';
-import { artSVG } from './art.js';
+} from './engine.js?v=8';
+import { bestAction, doAction } from './ai.js?v=8';
+import { artSVG } from './art.js?v=8';
 
 const app = document.getElementById('app');
 const fxLayer = document.getElementById('fx');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const STRIP = { a: 15, b: 11 };
+const BUILD = '8';
 
 function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } }
@@ -153,6 +154,7 @@ function menu() {
   app.innerHTML = `<div class="menu">
     <div class="logo">STACK<br>ATTACK</div>
     <div class="tag">wizard duels · stack to level up · first to ${WIN_SHARDS} shards</div>
+    <div class="tag" style="font-size:10px;opacity:.6">build ${BUILD}</div>
     <div class="decks">${picks}</div>
     <div class="row"><button class="btn" data-act="view">View deck</button><button class="btn primary" data-act="play">Duel</button></div>
     <div class="rules"><b>How it works</b><ul>
@@ -317,6 +319,19 @@ function banner(text, color) {
   document.body.appendChild(b); setTimeout(() => b.remove(), 1000);
 }
 
+// Update slot highlight classes + prompt without rebuilding the DOM. Rebuilding mid-drag
+// detaches the element under the finger, and iOS Safari then stops delivering touch moves.
+function applyHighlights() {
+  for (const el of app.querySelectorAll('.slot')) {
+    el.classList.remove('hl', 'stackable', 'target', 'selected', 'swap', 'drop');
+    if (el.classList.contains('locked')) continue;
+    const cls = hlFor(el.dataset.o, el.dataset.z, +el.dataset.i);
+    if (cls) el.classList.add(...cls.split(' ').filter(Boolean));
+  }
+  const pr = app.querySelector('.prompt');
+  if (pr) pr.outerHTML = promptHTML();
+}
+
 // ---------- drag: hand cards onto slots, and your stacks between bench <-> active ----------
 let drag = null, suppressClick = false;
 
@@ -335,13 +350,13 @@ app.addEventListener('pointerdown', e => {
   if (!G || busy || G.active !== 'p' || G.winner) return;
   const h = e.target.closest('[data-hand]');
   if (h) {
-    drag = { kind: 'hand', id: h.dataset.hand, k: +h.dataset.k, x0: e.clientX, y0: e.clientY, started: false, html: h.outerHTML, w: h.offsetWidth, hh: h.offsetHeight };
+    drag = { src: h, kind: 'hand', id: h.dataset.hand, k: +h.dataset.k, x0: e.clientX, y0: e.clientY, started: false, html: h.outerHTML, w: h.offsetWidth, hh: h.offsetHeight };
     return;
   }
   const sl = e.target.closest('.slot[data-o="p"]');
   if (sl && !sl.classList.contains('locked') && getSt('p', sl.dataset.z, +sl.dataset.i) && !sel) {
     const from = { zone: sl.dataset.z, i: +sl.dataset.i }, top = topCard(getSt('p', from.zone, from.i));
-    drag = { kind: 'move', from, x0: e.clientX, y0: e.clientY, started: false, html: cardHTML(top), w: 78, hh: 108 };
+    drag = { src: sl, kind: 'move', from, x0: e.clientX, y0: e.clientY, started: false, html: cardHTML(top), w: 78, hh: 108 };
   }
 });
 document.addEventListener('pointermove', e => {
@@ -350,7 +365,8 @@ document.addEventListener('pointermove', e => {
     if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
     drag.started = true;
     sel = drag.kind === 'hand' ? { kind: 'hand', id: drag.id, k: drag.k } : { kind: 'move', from: drag.from };
-    closePop(); render();
+    closePop(); applyHighlights();
+    drag.src?.classList.add('lifting');
     const g = document.createElement('div');
     g.className = 'ghost'; g.innerHTML = drag.html;
     g.style.width = `${drag.w}px`; g.style.height = `${drag.hh}px`;
@@ -382,6 +398,7 @@ function endDrag(e) {
   }
   sel = null; render();
 }
+document.addEventListener('touchmove', e => { if (drag?.started) e.preventDefault(); }, { passive: false });
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
 

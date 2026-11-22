@@ -223,3 +223,5 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .slot[data-o="p"] { touch-action: none; }
 .slot.hl.swap::after { content: "SWAP 1◆"; position: absolute; left: 50%; top: 4px; transform: translateX(-50%); z-index: 30;
   font-size: 9px; font-weight: 900; background: var(--gold); color: #2a1206; padding: 1px 5px; border-radius: 5px; }
+.lifting { opacity: .35; }
+html, body { -webkit-touch-callout: none; }
