@@ -1,18 +1,18 @@
-import { CARDS, TAGS, RARITY, STARTERS, KW_HELP, stripText, fxText } from './data.js?v=8';
+import { CARDS, TAGS, RARITY, STARTERS, KW_HELP, stripText, fxText } from './data.js?v=9';
 import {
   WIN_SHARDS, MAX_STACK, OPEN_COST, RETREAT_COST, newGame, endTurn, topCard, buried, mods, hp, maxHp,
   atkCost, atkDmg, condMet, resonant, placeTargets, place, canOpen, openSlot, canFill, fill, canSwap, swap,
   canAttackerAct, attackTargets, attack,
-} from './engine.js?v=8';
-import { bestAction, doAction } from './ai.js?v=8';
-import { artSVG } from './art.js?v=8';
+} from './engine.js?v=9';
+import { bestAction, doAction } from './ai.js?v=9';
+import { artSVG } from './art.js?v=9';
 
 const app = document.getElementById('app');
 const fxLayer = document.getElementById('fx');
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 const STRIP = { a: 15, b: 11 };
-const BUILD = '8';
+const BUILD = '9';
 
 function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } }
@@ -111,7 +111,7 @@ function drawPop() {
       }).join('');
     const why = atkAi !== null && !canAttackerAct(G, 'p', atkAi)
       ? (st.attacked ? 'Already acted this turn.' : st.fresh ? 'Just summoned — can attack next turn.'
-        : G.players.p.turns === 1 ? 'No attacks on the very first turn.' : 'Slot opened this turn — attacks next turn.') : '';
+        : G.first === 'p' && G.players.p.turns === 1 ? 'No attacks when going first, turn 1.' : 'Slot opened this turn — attacks next turn.') : '';
     body = `<div class="phead">${spec.o === 'p' ? 'YOUR' : 'RIVAL'} ${spec.zone === 'a' ? 'ACTIVE' : 'BENCH'} · Lv${st.cards.length} · KO worth ${st.cards.length}◆</div>
       ${bigCardHTML(top, st, atkAi)}${under ? `<div class="burs">${under}</div>` : ''}
       ${why ? `<div class="pwhy">${why}</div>` : ''}<div class="pkw">${kwHelpFor(st.cards.map(id => CARDS[id]), st)}</div>`;
@@ -191,12 +191,37 @@ let sel = null;   // {kind:'hand', id, k} | {kind:'attack', ai, which} | {kind:'
 let busy = false, note = '';
 const getSt = (o, zone, i) => (zone === 'a' ? G.players[o].active[i] : G.players[o].bench[i]);
 
-function startGame() {
+async function startGame() {
   const enemy = Object.keys(STARTERS).find(n => n !== deckName) || deckName;
-  G = newGame({ pDeck: STARTERS[deckName].cards, eDeck: STARTERS[enemy].cards });
-  sel = null; busy = false; note = 'Drag a card up to summon your first fighter.';
+  const first = Math.random() < 0.5 ? 'p' : 'e';
+  G = newGame({ pDeck: STARTERS[deckName].cards, eDeck: STARTERS[enemy].cards, first });
+  sel = null; busy = true; note = '';
   app.onclick = onClick;
+  render();
+  await coinFlip(first);
+  if (first === 'e') return rivalTurn();
+  busy = false; note = 'Drag a card up to summon your first fighter.';
   render(); banner('Your turn', 'var(--p)');
+}
+
+// coin flip overlay: spins, lands on who goes first, then explains the catch-up rule
+function coinFlip(first) {
+  return new Promise(res => {
+    const d = document.createElement('div');
+    d.className = 'center coinwrap';
+    const youFirst = first === 'p';
+    d.innerHTML = `<div class="coin ${youFirst ? 'land-p' : 'land-e'}"><div class="face p">YOU</div><div class="face e">RIVAL</div></div>
+      <div class="cointxt"></div>`;
+    document.body.appendChild(d);
+    setTimeout(() => {
+      d.querySelector('.cointxt').innerHTML = youFirst
+        ? '<b style="color:var(--p)">You go first</b><br><span>No attacks on your first turn.</span>'
+        : '<b style="color:var(--e)">Rival goes first</b><br><span>You get +1 mana on your first turn.</span>';
+    }, 1500);
+    const done = () => { d.remove(); res(); };
+    const t = setTimeout(done, 3100);
+    d.onclick = () => { clearTimeout(t); done(); };
+  });
 }
 
 function stackHTML(st, zone) {
@@ -437,6 +462,11 @@ async function endPlayerTurn() {
   busy = true; sel = null; closePop();
   endTurn(G); render(); fx();
   if (G.winner) return showEnd();
+  return rivalTurn();
+}
+
+async function rivalTurn() {
+  busy = true; render();
   banner('Rival turn', 'var(--e)');
   await wait(800);
   for (let g = 0; g < 30; g++) {

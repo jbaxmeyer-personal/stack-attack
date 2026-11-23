@@ -2,7 +2,7 @@
 // Each side: 2 active slots (2nd must be opened), 3 bench slots. Stacks up to 3 cards.
 // Top card = fighter (its attacks + HP). Buried cards = strips (passives) if their condition holds.
 // KO a stack → you gain shards equal to its height. First to WIN_SHARDS wins.
-import { CARDS, RESONANCE } from './data.js?v=8';
+import { CARDS, RESONANCE } from './data.js?v=9';
 
 export const WIN_SHARDS = 5, MAX_STACK = 3, HAND_SIZE = 4, HAND_MAX = 6, START_HAND = 5;
 export const MAX_MANA = 8, OPEN_COST = 2, RETREAT_COST = 1;
@@ -63,12 +63,12 @@ export function atkDmg(s, st, which) {
 }
 
 // ---------- setup / turns ----------
-export function newGame({ pDeck, eDeck, firstNoAttack = true }) {
+export function newGame({ pDeck, eDeck, first = 'p', firstNoAttack = true }) {
   const mk = deck => ({ deck: shuffle([...deck]), hand: [], mana: 0, maxMana: 0, turns: 0, shards: 0,
     active: [null, null], bench: [null, null, null], open2: false, openedTurn: -1, retreated: false });
-  const s = { players: { p: mk(pDeck), e: mk(eDeck) }, active: 'p', winner: null, round: 0, events: [], log: [], firstNoAttack };
+  const s = { players: { p: mk(pDeck), e: mk(eDeck) }, active: first, first, winner: null, round: 0, events: [], log: [], firstNoAttack };
   draw(s, 'p', START_HAND); draw(s, 'e', START_HAND);
-  startTurn(s, 'p');
+  startTurn(s, first);
   return s;
 }
 const ev = (s, e) => s.events.push(e);
@@ -82,11 +82,11 @@ export function draw(s, o, n) {
 
 export function startTurn(s, o) {
   s.active = o;
-  if (o === 'p') s.round++;
+  if (o === s.first) s.round++;
   const P = s.players[o];
   P.turns++;
   P.maxMana = Math.min(MAX_MANA, P.turns + 1);
-  P.mana = P.maxMana + (o === 'e' && P.turns === 1 ? 1 : 0); // going second: +1 mana on your first turn
+  P.mana = P.maxMana + (o !== s.first && P.turns === 1 ? 1 : 0); // going second: +1 mana on your first turn
   P.retreated = false;
   for (const { st } of stacks(s, o)) { st.attacked = false; st.fresh = false; }
   // burn ticks (ignores shield), then regen
@@ -207,7 +207,7 @@ export function canAttackerAct(s, o, ai) {
   const P = s.players[o], st = P.active[ai];
   if (!st || s.active !== o || s.winner || st.attacked || st.fresh) return false;
   if (ai === 1 && P.openedTurn === P.turns) return false;
-  if (s.firstNoAttack && o === 'p' && P.turns === 1) return false;
+  if (s.firstNoAttack && o === s.first && P.turns === 1) return false;
   return true;
 }
 export function attackTargets(s, o, ai, which) {
